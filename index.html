@@ -22,6 +22,9 @@
       radial-gradient(circle,rgba(0,0,0,.18) 1.6px,transparent 1.8px) 0 0/10px 10px,
       linear-gradient(135deg,#ffd23f,#ff8a1f);overflow:auto;padding:2%}
   .screen.show{display:flex}
+  body.lite .screen{background:linear-gradient(135deg,#ffd23f,#ff8a1f)}
+  body.lite *{animation:none !important;text-shadow:none !important}
+  body.lite .card,body.lite .tcard,body.lite button{box-shadow:none !important}
   .cover-title{font-family:'Luckiest Guy','Bangers',Impact,sans-serif;letter-spacing:.03em;font-size:clamp(40px,10.5vw,138px);line-height:.88;text-align:center;color:#fff;
     -webkit-text-stroke:3px #000;text-shadow:6px 6px 0 #000;transform:rotate(-3deg);margin:0}
   .cover-title span{color:var(--red)}
@@ -284,10 +287,14 @@
 'use strict';
 // ============ CONFIG ============
 let W=1280;const H=720;
-const cv=document.getElementById('c');let ctx=cv.getContext('2d');
+// ===== MODO LEVE (Smart TV / ?tv=1): resolução menor, horizonte mais curto e sem retícula =====
+const LITE=(()=>{try{const q=new URLSearchParams(location.search);if(q.has('tv')||q.has('leve'))return q.get('tv')!=='0';const ls=localStorage.getItem('fk-lite');if(ls!==null)return ls==='1'}catch(e){}
+  return /Tizen|SMART-TV|SmartTV|Web0S|WebOS|NetCast|HbbTV|BRAVIA|AFT[A-Z]|CrKey|GoogleTV/i.test(navigator.userAgent)})();
+const LS=LITE?.5:1;if(LITE)document.body.classList.add('lite');
+const cv=document.getElementById('c');if(LITE){cv.width=640;cv.height=360}let ctx=cv.getContext('2d');if(LITE)ctx.setTransform(LS,0,0,LS,0,0);
 const FONT="'Bangers', Impact, 'Comic Sans MS', sans-serif";
 const LAPS=3;
-const segLen=200, rumbleLength=3, roadWidth=2000, lanes=3, fov=100, cameraHeight=1150, drawDistance=650;
+const segLen=200, rumbleLength=3, roadWidth=2000, lanes=3, fov=100, cameraHeight=1150, drawDistance=LITE?200:650;
 const cameraDepth=1/Math.tan((fov/2)*Math.PI/180);
 const playerZ=cameraHeight*cameraDepth*1.9; // câmera mais afastada do kart
 const step=1/60;
@@ -330,6 +337,7 @@ function shade(hex,amt){ // amt -1..1
 
 // ============ PATTERNS (retícula) ============
 function dotPattern(bg,dot,size,rad){
+  if(LITE)return bg||'rgba(0,0,0,0)';
   const p=document.createElement('canvas');p.width=p.height=size;const c=p.getContext('2d');
   if(bg){c.fillStyle=bg;c.fillRect(0,0,size,size)}
   c.fillStyle=dot;c.beginPath();c.arc(size/2,size/2,rad,0,Math.PI*2);c.fill();
@@ -2614,7 +2622,7 @@ function drawKart(cx,by,w,r,clip){
 }
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();ctx.stroke()}
 
-const offCv=document.createElement('canvas');offCv.width=1280;offCv.height=720;const offCtx=offCv.getContext('2d');
+const offCv=document.createElement('canvas');offCv.width=1280*LS;offCv.height=720*LS;const offCtx=offCv.getContext('2d');if(LITE)offCtx.setTransform(LS,0,0,LS,0,0);
 function render(){
   if(!segments.length){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);return}
   if(views.length>1&&state!=='title'&&state!=='select'&&state!=='trackselect'){renderSplit();return}
@@ -2625,7 +2633,7 @@ function renderSplit(){
   if(views.length>2){
     const pos=[[0,0],[640,0],[0,360],[640,360]];
     views.forEach((v,i)=>withView(v,()=>{ctx=offCtx;try{renderScene();drawFX();drawHUD()}finally{ctx=main}
-      main.drawImage(offCv,0,0,1280,720,pos[i][0],pos[i][1],640,360)}));
+      main.drawImage(offCv,0,0,offCv.width,offCv.height,pos[i][0],pos[i][1],640,360)}));
     if(views.length===3){ // quarto quadrante: classificação geral
       main.fillStyle='#1b1b2f';main.fillRect(640,360,640,360);main.fillStyle=PAT.sky;main.fillRect(640,360,640,360);
       const srt=[...racers].sort((a,b)=>b.prog-a.prog);
@@ -2638,7 +2646,7 @@ function renderSplit(){
   }
   views.forEach((v,i)=>withView(v,()=>{
     ctx=offCtx;try{renderScene()}finally{ctx=main}
-    main.drawImage(offCv,320,0,640,720,i*640,0,640,720);
+    main.drawImage(offCv,320*LS,0,640*LS,720*LS,i*640,0,640,720);
     main.save();main.translate(i*640,0);main.beginPath();main.rect(0,0,640,720);main.clip();W=640;
     try{drawFX();drawHUD()}finally{W=1280;main.restore()}
   }));
@@ -2680,7 +2688,7 @@ function renderScene(){
     const s1=seg.p1.screen,s2=seg.p2.screen;
     if(seg.p1.camera.z<=cameraDepth)continue;
     ctx.globalAlpha=1-(seg.fog||0)*0.85;
-    for(const s of seg.sprites){
+    if(!(LITE&&n>110))for(const s of seg.sprites){
       drawSprite(s,s1.scale,s1.x+s1.scale*s.offset*roadWidth*W/2,s1.y,seg.clip);
     }
     if(bbox[seg.index])for(const b of bbox[seg.index])drawSprite({type:'box',offset:b.offset},s1.scale,s1.x+s1.scale*b.offset*roadWidth*W/2,s1.y,seg.clip);
@@ -2985,7 +2993,7 @@ function navStart(){const sc=curScreen();if(!sc)return;const id={sTitle:'bStart'
 // ============ LOOP ============
 let last=performance.now(),acc=0,lastCount=4;
 function frame(now){
-  let dt=Math.min(.05,(now-last)/1000);last=now;
+  let dt=Math.min(LITE?.1:.05,(now-last)/1000);last=now;
   pollPad();
   updateEngine();musicTick();
   if(state==='garage'&&Math.floor(now/50)%2===0)drawPreview(); // garante motor mudo fora da corrida (menu, pausa, resultado)
